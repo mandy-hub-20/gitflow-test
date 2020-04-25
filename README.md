@@ -1,2 +1,3 @@
 "# gitflow-test" 
-$git from online directly
+Edit from online directly
+Edit from local
