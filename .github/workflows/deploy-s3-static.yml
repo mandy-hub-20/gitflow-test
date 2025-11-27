@@ -1,0 +1,98 @@
+name: Build Python & Deploy Static Site to S3
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.12"
+  BUILD_DIR: site            # change to your output dir: 'dist', 'build', 'public', etc.
+  S3_BUCKET: your-bucket-name
+  AWS_REGION: ap-southeast-1 # pick your region
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Optional: Lint & test
+      - name: Lint
+        run: |
+          pip install flake8
+          flake8 .
+
+      - name: Run tests
+        run: |
+          pip install pytest
+          pytest -q
+
+      # Build the static site (adjust to your tooling)
+      # Examples:
+      # - MkDocs: mkdocs build --clean
+      # - Sphinx: sphinx-build -b html docs/ site/
+      # - Frozen-Flask: python freeze.py
+      - name: Build static site
+        run: |
+          # Replace with your build command:
+          # mkdocs build --clean
+          echo ">> Replace this step with your build command"
+          mkdir -p ${{ env.BUILD_DIR }}
+          echo "<html><body><h1>Hello from S3!</h1></body></html>" > ${{ env.BUILD_DIR }}/index.html
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Sync non-HTML assets with long cache
+      - name: Sync assets with cache headers
+        run: |
+          aws s3 sync "${{ env.BUILD_DIR }}/" "s3://${{ env.S3_BUCKET }}/" \
+            --delete \
+            --exclude "*.html" \
+            --cache-control "public, max-age=31536000, immutable" \
+            --acl public-read
+
+      # Upload HTML with no-cache so updates appear instantly
+      - name: Upload HTML as no-cache
+        run: |
+          find "${{ env.BUILD_DIR }}" -type f -name "*.html" -print0 | \
+          xargs -0 -I {} aws s3 cp "{}" "s3://${{ env.S3_BUCKET }}/$(realpath --relative-to='${{ env.BUILD_DIR }}' '{}')" \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --content-type "text/html; charset=utf-8" \
+            --acl public-read
+
+      # Optional: Invalidate CloudFront if you use it in front of S3
+      - name: Invalidate CloudFront
+        if: secrets.CLOUDFRONT_DISTRIBUTION_ID != ''
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/*"
