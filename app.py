@@ -8,7 +8,7 @@ from datetime import datetime
 
 @app.route('/')
 def home():
-    return render_template('index.html', message="Heyyy, Flask!")
+    return render_template('index.html', message="Heyyy, Home Flask!")
 
 @app.route('/showdate')
 def showdate():
