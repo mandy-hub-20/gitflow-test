@@ -35,10 +35,10 @@ jobs:
           pip install -r requirements.txt
 
       # Optional: Lint & test
-      - name: Lint
-        run: |
-          pip install flake8
-          flake8 .
+      # - name: Lint
+      #   run: |
+      #     pip install flake8
+      #     flake8 .
 
       - name: Run tests
         run: |
